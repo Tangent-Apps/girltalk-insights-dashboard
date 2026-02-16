@@ -10,11 +10,25 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f0f1a;color:#e0e0e0;padding:20px}
-.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 h1{font-size:24px;color:#f0c4e8}
+.header-actions{display:flex;gap:10px;align-items:center}
 .run-btn{background:#9b59b6;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px}
 .run-btn:hover{background:#8e44ad}
 .run-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid #2a2a4a;padding-bottom:0}
+.tab{background:none;border:none;color:#888;padding:10px 20px;cursor:pointer;font-size:14px;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+.tab:hover{color:#ccc}
+.tab.active{color:#f0c4e8;border-bottom-color:#9b59b6}
+
+/* Week picker */
+.week-picker{display:flex;align-items:center;gap:8px}
+.week-picker select{background:#1a1a2e;color:#e0e0e0;border:1px solid #3a3a5a;padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer}
+.week-picker select:focus{outline:none;border-color:#9b59b6}
+
+/* Stats & Cards */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
 .stat-card{background:#1a1a2e;border-radius:12px;padding:20px;text-align:center}
 .stat-card .value{font-size:32px;font-weight:700;color:#f0c4e8}
@@ -36,13 +50,58 @@ h1{font-size:24px;color:#f0c4e8}
 .status{text-align:center;padding:40px;color:#888;font-size:14px}
 .last-run{font-size:12px;color:#666}
 canvas{max-height:220px}
+
+/* Conversations view */
+.conversations-controls{display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap}
+.conversations-controls select,.conversations-controls input{background:#1a1a2e;color:#e0e0e0;border:1px solid #3a3a5a;padding:8px 12px;border-radius:8px;font-size:13px}
+.conversations-controls input{flex:1;min-width:200px}
+.conversations-controls input:focus,.conversations-controls select:focus{outline:none;border-color:#9b59b6}
+.load-btn{background:#9b59b6;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px}
+.load-btn:hover{background:#8e44ad}
+.load-btn:disabled{opacity:.5;cursor:not-allowed}
+
+.convo-list{display:flex;flex-direction:column;gap:8px}
+.convo-item{background:#1a1a2e;border-radius:12px;overflow:hidden}
+.convo-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;transition:background .2s}
+.convo-header:hover{background:#1e1e36}
+.convo-title{font-size:14px;font-weight:600;color:#f0c4e8;flex:1}
+.convo-meta{display:flex;gap:12px;align-items:center;font-size:12px;color:#888}
+.convo-meta .badge{background:#2a2a4a;padding:2px 8px;border-radius:10px}
+.convo-messages{display:none;padding:0 18px 18px;border-top:1px solid #2a2a4a}
+.convo-messages.open{display:block}
+.msg{padding:10px 14px;margin-top:8px;border-radius:10px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word}
+.msg.user{background:#16213e;border-left:3px solid #3498db;margin-right:40px}
+.msg.assistant{background:#1a2e1a;border-left:3px solid #2ecc71;margin-left:40px}
+.msg.system{background:#2a2a2a;border-left:3px solid #95a5a6;font-size:12px;color:#999;margin-right:20px;margin-left:20px}
+.msg-role{font-size:11px;font-weight:600;text-transform:uppercase;margin-bottom:4px;letter-spacing:.5px}
+.msg.user .msg-role{color:#3498db}
+.msg.assistant .msg-role{color:#2ecc71}
+.msg.system .msg-role{color:#95a5a6}
+.convo-count{text-align:center;padding:12px;color:#888;font-size:13px}
+
+/* Tab content */
+.tab-content{display:none}
+.tab-content.active{display:block}
 </style>
 </head>
 <body>
 <div class="header">
 <div><h1>GirlTalk Chat Insights</h1><div class="last-run" id="lastRun"></div></div>
+<div class="header-actions">
+<div class="week-picker" id="weekPicker" style="display:none">
+<select id="weekSelect" onchange="loadWeekData(this.value)"></select>
+</div>
 <button class="run-btn" id="runBtn" onclick="runAnalysis()">Run Analysis Now</button>
 </div>
+</div>
+
+<div class="tabs">
+<button class="tab active" onclick="switchTab('analysis')">Analysis</button>
+<button class="tab" onclick="switchTab('conversations')">Conversations</button>
+</div>
+
+<!-- Analysis Tab -->
+<div class="tab-content active" id="tab-analysis">
 <div class="stats" id="stats"></div>
 <div class="grid">
 <div class="card"><h2>Sentiment Distribution</h2><canvas id="sentimentChart"></canvas></div>
@@ -52,28 +111,103 @@ canvas{max-height:220px}
 <div class="card"><h2>Pain Points</h2><div id="painPoints"></div></div>
 <div class="card"><h2>Key Insights</h2><div id="insights"></div></div>
 </div>
+</div>
+
+<!-- Conversations Tab -->
+<div class="tab-content" id="tab-conversations">
+<div class="conversations-controls">
+<select id="convoDays">
+<option value="7">Last 7 days</option>
+<option value="30" selected>Last 30 days</option>
+<option value="90">Last 90 days</option>
+<option value="365">Last year</option>
+</select>
+<input type="text" id="convoSearch" placeholder="Search conversations..." oninput="filterConversations()">
+<button class="load-btn" id="loadConvosBtn" onclick="loadConversations()">Load Conversations</button>
+</div>
+<div class="convo-count" id="convoCount"></div>
+<div class="convo-list" id="convoList">
+<div class="status">Click "Load Conversations" to fetch chat sessions.</div>
+</div>
+</div>
+
 <script>
 firebase.initializeApp({apiKey:"AIzaSyDummy",authDomain:"girltalk-9b4f8.firebaseapp.com",projectId:"girltalk-9b4f8"});
-const db=firebase.firestore();
-const FUNCTION_URL="https://us-central1-girltalk-9b4f8.cloudfunctions.net/analyzeChats";
+var db=firebase.firestore();
+var FUNCTION_URL="https://us-central1-girltalk-9b4f8.cloudfunctions.net/analyzeChats";
+var sentimentChart=null;
+var allConversations=[];
 
-async function loadData(){
-  const metaSnap=await db.collection("chatInsights").doc("_metadata").get();
-  if(!metaSnap.exists)return document.getElementById("stats").innerHTML='<div class="status">No analysis data yet. Click "Run Analysis Now".</div>';
-  const lastKey=metaSnap.data().lastRunDate;
-  const snap=await db.collection("chatInsights").doc(lastKey).get();
-  if(!snap.exists)return;
-  const d=snap.data();
-  document.getElementById("lastRun").textContent="Last run: "+new Date(d.runDate).toLocaleString()+" | "+d.totalChatsAnalyzed+" chats, "+d.totalMessagesAnalyzed+" messages";
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active")});
+  document.querySelectorAll(".tab-content").forEach(function(t){t.classList.remove("active")});
+  document.querySelector(".tab-content#tab-"+name).classList.add("active");
+  document.querySelectorAll(".tab").forEach(function(t){
+    if((name==="analysis"&&t.textContent==="Analysis")||(name==="conversations"&&t.textContent==="Conversations")){
+      t.classList.add("active");
+    }
+  });
+  // Show week picker only on analysis tab
+  document.getElementById("weekPicker").style.display=(name==="analysis")?"flex":"none";
+}
+
+async function loadWeeks(){
+  var metaSnap=await db.collection("chatInsights").doc("_metadata").get();
+  if(!metaSnap.exists)return;
+  var meta=metaSnap.data();
+  var weeks=meta.weeks||[];
+  var select=document.getElementById("weekSelect");
+  if(weeks.length===0){
+    // fallback: just show latest
+    var opt=document.createElement("option");
+    opt.value=meta.lastRunDate||"";
+    opt.textContent="Latest ("+meta.lastRunDate+")";
+    select.appendChild(opt);
+  } else {
+    // Add "Latest" option
+    var latestOpt=document.createElement("option");
+    latestOpt.value="__latest__";
+    latestOpt.textContent="Latest";
+    select.appendChild(latestOpt);
+    // Add each week
+    for(var i=0;i<weeks.length;i++){
+      var opt=document.createElement("option");
+      opt.value="week-"+weeks[i];
+      opt.textContent=weeks[i];
+      select.appendChild(opt);
+    }
+  }
+  document.getElementById("weekPicker").style.display="flex";
+}
+
+async function loadWeekData(docKey){
+  if(docKey==="__latest__"){
+    var metaSnap=await db.collection("chatInsights").doc("_metadata").get();
+    if(!metaSnap.exists)return;
+    docKey=metaSnap.data().lastRunDate;
+  }
+  var snap=await db.collection("chatInsights").doc(docKey).get();
+  if(!snap.exists){
+    document.getElementById("stats").innerHTML='<div class="status">No data for this week.</div>';
+    return;
+  }
+  renderAnalysis(snap.data());
+}
+
+function renderAnalysis(d){
+  document.getElementById("lastRun").textContent="Run: "+new Date(d.runDate).toLocaleString()+" | "+d.totalChatsAnalyzed+" chats, "+(d.totalMessagesAnalyzed||0)+" messages"+(d.weekKey?" | Week: "+d.weekKey:"");
+
   document.getElementById("stats").innerHTML=[
     {v:d.totalChatsAnalyzed,l:"Conversations"},
-    {v:d.totalMessagesAnalyzed,l:"Messages"},
+    {v:d.totalMessagesAnalyzed||0,l:"Messages"},
     {v:(d.engagement&&d.engagement.avgMessageCount||0).toFixed(1),l:"Avg Msgs/Chat"},
     {v:Math.round(d.sentiment&&d.sentiment.negative||0)+"%",l:"Negative Sentiment"}
   ].map(function(s){return '<div class="stat-card"><div class="value">'+s.v+'</div><div class="label">'+s.l+'</div></div>'}).join("");
 
+  // Destroy old chart if exists
+  if(sentimentChart){sentimentChart.destroy();sentimentChart=null}
   var ctx=document.getElementById("sentimentChart").getContext("2d");
-  new Chart(ctx,{type:"doughnut",data:{labels:["Positive","Neutral","Negative"],datasets:[{data:[d.sentiment&&d.sentiment.positive||0,d.sentiment&&d.sentiment.neutral||0,d.sentiment&&d.sentiment.negative||0],backgroundColor:["#2ecc71","#95a5a6","#e74c3c"],borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#ccc"}}}}});
+  sentimentChart=new Chart(ctx,{type:"doughnut",data:{labels:["Positive","Neutral","Negative"],datasets:[{data:[d.sentiment&&d.sentiment.positive||0,d.sentiment&&d.sentiment.neutral||0,d.sentiment&&d.sentiment.negative||0],backgroundColor:["#2ecc71","#95a5a6","#e74c3c"],borderWidth:0}]},options:{responsive:true,plugins:{legend:{position:"bottom",labels:{color:"#ccc"}}}}});
 
   var maxCount=1;
   if(d.topics&&d.topics.length>0){for(var i=0;i<d.topics.length;i++){if(d.topics[i].count>maxCount)maxCount=d.topics[i].count}}
@@ -93,6 +227,95 @@ async function loadData(){
   document.getElementById("insights").innerHTML=insHtml;
 }
 
+async function loadData(){
+  var metaSnap=await db.collection("chatInsights").doc("_metadata").get();
+  if(!metaSnap.exists)return document.getElementById("stats").innerHTML='<div class="status">No analysis data yet. Click "Run Analysis Now".</div>';
+  var lastKey=metaSnap.data().lastRunDate;
+  var snap=await db.collection("chatInsights").doc(lastKey).get();
+  if(!snap.exists)return;
+  renderAnalysis(snap.data());
+  await loadWeeks();
+}
+
+async function loadConversations(){
+  var btn=document.getElementById("loadConvosBtn");
+  btn.disabled=true;btn.textContent="Loading...";
+  var days=document.getElementById("convoDays").value;
+  try{
+    var r=await fetch(FUNCTION_URL+"?action=conversations&days="+days);
+    var j=await r.json();
+    if(j.success){
+      allConversations=j.conversations||[];
+      document.getElementById("convoCount").textContent=allConversations.length+" conversations found";
+      renderConversations(allConversations);
+    } else {
+      document.getElementById("convoList").innerHTML='<div class="status">Error: '+(j.error||"Unknown error")+'</div>';
+    }
+  }catch(e){
+    document.getElementById("convoList").innerHTML='<div class="status">Error loading conversations.</div>';
+  }
+  btn.disabled=false;btn.textContent="Load Conversations";
+}
+
+function filterConversations(){
+  var q=document.getElementById("convoSearch").value.toLowerCase();
+  if(!q){renderConversations(allConversations);return}
+  var filtered=allConversations.filter(function(c){
+    if(c.title&&c.title.toLowerCase().indexOf(q)>=0)return true;
+    if(c.summary&&c.summary.toLowerCase().indexOf(q)>=0)return true;
+    for(var i=0;i<c.messages.length;i++){
+      if(c.messages[i].content&&c.messages[i].content.toLowerCase().indexOf(q)>=0)return true;
+    }
+    return false;
+  });
+  document.getElementById("convoCount").textContent=filtered.length+" of "+allConversations.length+" conversations";
+  renderConversations(filtered);
+}
+
+function renderConversations(convos){
+  if(convos.length===0){
+    document.getElementById("convoList").innerHTML='<div class="status">No conversations found.</div>';
+    return;
+  }
+  var html="";
+  for(var i=0;i<convos.length;i++){
+    var c=convos[i];
+    var date=c.createdAt?new Date(c.createdAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"}):"Unknown date";
+    var title=c.title||"Untitled conversation";
+    // Escape HTML
+    title=title.replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+    html+='<div class="convo-item">';
+    html+='<div class="convo-header" onclick="toggleConvo(this)">';
+    html+='<div class="convo-title">'+title+'</div>';
+    html+='<div class="convo-meta">';
+    html+='<span class="badge">'+c.messageCount+' msgs</span>';
+    html+='<span>'+date+'</span>';
+    html+='</div></div>';
+    html+='<div class="convo-messages" id="convo-'+i+'">';
+
+    for(var j=0;j<c.messages.length;j++){
+      var m=c.messages[j];
+      var content=(m.content||"").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      // Truncate very long system messages
+      if(m.role==="system"&&content.length>500){
+        content=content.substring(0,500)+"... [truncated]";
+      }
+      html+='<div class="msg '+m.role+'">';
+      html+='<div class="msg-role">'+m.role+'</div>';
+      html+=content;
+      html+='</div>';
+    }
+    html+='</div></div>';
+  }
+  document.getElementById("convoList").innerHTML=html;
+}
+
+function toggleConvo(el){
+  var msgs=el.nextElementSibling;
+  msgs.classList.toggle("open");
+}
+
 async function runAnalysis(){
   var btn=document.getElementById("runBtn");
   btn.disabled=true;btn.textContent="Analyzing...";
@@ -103,6 +326,7 @@ async function runAnalysis(){
     else{btn.textContent="Error: "+j.error;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
   }catch(e){btn.textContent="Error";setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
 }
+
 loadData();
 </script>
 </body>
