@@ -109,7 +109,7 @@ canvas{max-height:220px}
 </div>
 <div class="grid">
 <div class="card"><h2>Pain Points</h2><div id="painPoints"></div></div>
-<div class="card"><h2>Key Insights</h2><div id="insights"></div></div>
+<div class="card"><h2>Key Insights</h2><div id="insights"></div></div> </div> <div class="grid"> <div class="card" id="changesCard" style="display:none"><h2>Changes vs Previous Analysis</h2><div id="changes"></div></div>
 </div>
 </div>
 
@@ -225,6 +225,7 @@ function renderAnalysis(d){
   if(d.keyInsights&&d.keyInsights.length>0){for(var i=0;i<d.keyInsights.length;i++){insHtml+='<div class="insight">'+d.keyInsights[i]+'</div>'}}
   else{insHtml='<div class="status">No insights</div>'}
   document.getElementById("insights").innerHTML=insHtml;
+  if(d.comparisonSummary&&d.comparisonSummary.changes&&d.comparisonSummary.changes.length>0){document.getElementById("changesCard").style.display="block";var chHtml="";for(var i=0;i<d.comparisonSummary.changes.length;i++){chHtml+='<div class="insight">'+d.comparisonSummary.changes[i]+'</div>'}document.getElementById("changes").innerHTML=chHtml}else{document.getElementById("changesCard").style.display="none"}
 }
 
 async function loadData(){
