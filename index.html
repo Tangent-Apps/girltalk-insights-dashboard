@@ -320,7 +320,7 @@ async function runAnalysis(){
   var btn=document.getElementById("runBtn");
   btn.disabled=true;btn.textContent="Analyzing...";
   try{
-    var r=await fetch(FUNCTION_URL+"?days=30&full=true");
+    var r=await fetch(FUNCTION_URL+"?days=30");
     var j=await r.json();
     if(j.success){btn.textContent="Done! Reloading...";setTimeout(function(){location.reload()},1000)}
     else{btn.textContent="Error: "+j.error;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
