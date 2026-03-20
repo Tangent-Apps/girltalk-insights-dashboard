@@ -135,6 +135,7 @@ canvas{max-height:220px}
 firebase.initializeApp({apiKey:"AIzaSyDummy",authDomain:"girltalk-9b4f8.firebaseapp.com",projectId:"girltalk-9b4f8"});
 var db=firebase.firestore();
 var FUNCTION_URL="https://us-central1-girltalk-9b4f8.cloudfunctions.net/analyzeChats";
+var DASHBOARD_SECRET="94a3044282e412e398bfc1aacd6cf026e7c7fbf8490512c2f79f9c8b11db4058";
 var sentimentChart=null;
 var allConversations=[];
 
@@ -243,7 +244,7 @@ async function loadConversations(){
   btn.disabled=true;btn.textContent="Loading...";
   var days=document.getElementById("convoDays").value;
   try{
-    var r=await fetch(FUNCTION_URL+"?action=conversations&days="+days);
+    var r=await fetch(FUNCTION_URL+"?secret="+DASHBOARD_SECRET+"&action=conversations&days="+days);
     var j=await r.json();
     if(j.success){
       allConversations=j.conversations||[];
@@ -321,7 +322,7 @@ async function runAnalysis(){
   var btn=document.getElementById("runBtn");
   btn.disabled=true;btn.textContent="Analyzing...";
   try{
-    var r=await fetch(FUNCTION_URL+"?days=30");
+    var r=await fetch(FUNCTION_URL+"?secret="+DASHBOARD_SECRET+"&days=30");
     var j=await r.json();
     if(j.success){btn.textContent="Done! Reloading...";setTimeout(function(){location.reload()},1000)}
     else{btn.textContent="Error: "+j.error;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
