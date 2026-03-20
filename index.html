@@ -82,9 +82,33 @@ canvas{max-height:220px}
 /* Tab content */
 .tab-content{display:none}
 .tab-content.active{display:block}
+
+/* Login screen */
+.login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;position:fixed;inset:0;background:#0f0f1a;z-index:100}
+.login-box{background:#1a1a2e;border-radius:16px;padding:32px;width:320px;text-align:center}
+.login-box h2{color:#f0c4e8;font-size:20px;margin-bottom:8px}
+.login-box p{color:#888;font-size:13px;margin-bottom:20px}
+.login-box input{width:100%;padding:12px;background:#0f0f1a;border:1px solid #3a3a5a;border-radius:8px;color:#e0e0e0;font-size:14px;margin-bottom:12px}
+.login-box input:focus{outline:none;border-color:#9b59b6}
+.login-box button{width:100%;padding:12px;background:#9b59b6;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}
+.login-box button:hover{background:#8e44ad}
+.login-error{color:#e74c3c;font-size:12px;margin-top:8px;display:none}
 </style>
 </head>
 <body>
+
+<!-- Login screen -->
+<div class="login-screen" id="loginScreen">
+<div class="login-box">
+<h2>GirlTalk Insights</h2>
+<p>Enter the dashboard password to continue</p>
+<input type="password" id="loginPassword" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+<button onclick="doLogin()">Sign in</button>
+<div class="login-error" id="loginError">Wrong password. Try again.</div>
+</div>
+</div>
+
+<div id="appContent" style="display:none">
 <div class="header">
 <div><h1>GirlTalk Chat Insights</h1><div class="last-run" id="lastRun"></div></div>
 <div class="header-actions">
@@ -135,7 +159,7 @@ canvas{max-height:220px}
 firebase.initializeApp({apiKey:"AIzaSyDummy",authDomain:"girltalk-9b4f8.firebaseapp.com",projectId:"girltalk-9b4f8"});
 var db=firebase.firestore();
 var FUNCTION_URL="https://us-central1-girltalk-9b4f8.cloudfunctions.net/analyzeChats";
-var DASHBOARD_SECRET="94a3044282e412e398bfc1aacd6cf026e7c7fbf8490512c2f79f9c8b11db4058";
+function getSecret(){return sessionStorage.getItem("dashboard_secret")||""}
 var sentimentChart=null;
 var allConversations=[];
 
@@ -244,7 +268,7 @@ async function loadConversations(){
   btn.disabled=true;btn.textContent="Loading...";
   var days=document.getElementById("convoDays").value;
   try{
-    var r=await fetch(FUNCTION_URL+"?secret="+DASHBOARD_SECRET+"&action=conversations&days="+days);
+    var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&action=conversations&days="+days);
     var j=await r.json();
     if(j.success){
       allConversations=j.conversations||[];
@@ -322,14 +346,42 @@ async function runAnalysis(){
   var btn=document.getElementById("runBtn");
   btn.disabled=true;btn.textContent="Analyzing...";
   try{
-    var r=await fetch(FUNCTION_URL+"?secret="+DASHBOARD_SECRET+"&days=30");
+    var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&days=30");
     var j=await r.json();
     if(j.success){btn.textContent="Done! Reloading...";setTimeout(function(){location.reload()},1000)}
     else{btn.textContent="Error: "+j.error;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
   }catch(e){btn.textContent="Error";setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
 }
 
-loadData();
+// Login: verify password against the Cloud Function
+async function doLogin(){
+  var pw=document.getElementById("loginPassword").value.trim();
+  if(!pw)return;
+  try{
+    var r=await fetch(FUNCTION_URL+"?secret="+encodeURIComponent(pw)+"&action=ping");
+    var j=await r.json();
+    if(j.success!==false){
+      sessionStorage.setItem("dashboard_secret",pw);
+      document.getElementById("loginScreen").style.display="none";
+      document.getElementById("appContent").style.display="block";
+      loadData();
+    }else{
+      document.getElementById("loginError").style.display="block";
+    }
+  }catch(e){
+    document.getElementById("loginError").style.display="block";
+  }
+}
+window.doLogin=doLogin;
+window.toggleConvo=toggleConvo;
+
+// Auto-login if session still valid
+if(getSecret()){
+  document.getElementById("loginScreen").style.display="none";
+  document.getElementById("appContent").style.display="block";
+  loadData();
+}
 </script>
+</div><!-- /appContent -->
 </body>
 </html>
