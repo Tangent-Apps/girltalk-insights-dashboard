@@ -348,8 +348,15 @@ async function runAnalysis(){
   try{
     var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&days=30");
     var j=await r.json();
-    if(j.status==="ok"){btn.textContent="Done! Reloading...";setTimeout(function(){location.reload()},1000)}
-    else{btn.textContent="Error: "+(j.message||j.error||"Unknown error");setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
+    if(j.status==="ok"){
+      if(j.remaining>0){
+        btn.disabled=false;
+        btn.textContent="Run Again ("+j.remaining+" left)";
+      } else {
+        btn.textContent="Done! Reloading...";
+        setTimeout(function(){location.reload()},1500);
+      }
+    } else {btn.textContent="Error: "+(j.message||j.error||"Unknown error");setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
   }catch(e){btn.textContent="Error: "+e.message;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
 }
 

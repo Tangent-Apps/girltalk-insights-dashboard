@@ -7,8 +7,10 @@ const db = admin.firestore();
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || functions.config().anthropic?.api_key;
 const DASHBOARD_SECRET = process.env.DASHBOARD_SECRET || functions.config().dashboard?.secret;
-const BATCH_SIZE = 30;
-const MAX_MESSAGES_PER_CHAT = 50;
+const BATCH_SIZE = 20;          // conversations per Claude call
+const MAX_MESSAGES_PER_CHAT = 10; // keep tokens low per conversation
+const MAX_BATCHES_PER_RUN = 5;    // max 100 conversations per button click
+const DELAY_BETWEEN_BATCHES = 5000; // 5 seconds between batches
 
 exports.analyzeChats = functions
   .runWith({ timeoutSeconds: 540, memory: "1GB" })
@@ -66,22 +68,38 @@ exports.analyzeChats = functions
         return res.json({ status: "ok", message: "No new conversations to analyze", totalNew: 0 });
       }
 
-      // Analyze with Claude in batches
+      // Analyze with Claude in batches (capped per run to avoid rate limits)
       const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
       const batchResults = [];
+      const conversationsThisRun = conversations.slice(0, MAX_BATCHES_PER_RUN * BATCH_SIZE);
+      const remaining = conversations.length - conversationsThisRun.length;
 
-      for (let i = 0; i < conversations.length; i += BATCH_SIZE) {
-        const batch = conversations.slice(i, i + BATCH_SIZE);
-        console.log(`Analyzing batch ${Math.floor(i / BATCH_SIZE) + 1} (${batch.length} conversations)`);
+      for (let i = 0; i < conversationsThisRun.length; i += BATCH_SIZE) {
+        const batch = conversationsThisRun.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        console.log(`Analyzing batch ${batchNum} of ${Math.ceil(conversationsThisRun.length / BATCH_SIZE)} (${batch.length} conversations)`);
         const result = await analyzeWithClaude(client, batch);
         batchResults.push(result);
+        // Pause between batches to stay within rate limits
+        if (i + BATCH_SIZE < conversationsThisRun.length) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+        }
       }
 
-      const mergedResult = mergeBatchResults(batchResults, since, conversations.length);
-      await saveInsights(mergedResult, newSessionIds);
+      // Only mark the conversations we actually processed as analyzed
+      const processedIds = newSessionIds.slice(0, conversationsThisRun.length);
 
-      console.log(`Analysis complete: ${conversations.length} new conversations`);
-      return res.json({ status: "ok", result: mergedResult, totalNew: conversations.length });
+      const mergedResult = mergeBatchResults(batchResults, since, conversationsThisRun.length);
+      await saveInsights(mergedResult, processedIds);
+
+      console.log(`Analysis complete: ${conversationsThisRun.length} analyzed, ${remaining} remaining`);
+      return res.json({
+        status: "ok",
+        result: mergedResult,
+        totalNew: conversationsThisRun.length,
+        remaining,
+        message: remaining > 0 ? `Analyzed ${conversationsThisRun.length} conversations. ${remaining} more remain — click again to continue.` : `Analyzed ${conversationsThisRun.length} conversations. All caught up!`
+      });
 
     } catch (error) {
       console.error("Analysis failed:", error);
@@ -247,7 +265,7 @@ Guidelines:
 - Key insights: actionable observations for the product team`;
 
   const response = await client.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-sonnet-4-6",
     max_tokens: 4096,
     messages: [{ role: "user", content: prompt }],
   });
