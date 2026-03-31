@@ -1,12 +1,13 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const Anthropic = require("@anthropic-ai/sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 admin.initializeApp();
 const db = admin.firestore();
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || functions.config().anthropic?.api_key;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || functions.config().gemini?.api_key;
 const DASHBOARD_SECRET = process.env.DASHBOARD_SECRET || functions.config().dashboard?.secret;
+const GEMINI_MODEL = "gemini-2.5-flash-preview-04-17";
 const BATCH_SIZE = 20;          // conversations per Claude call
 const MAX_MESSAGES_PER_CHAT = 10; // keep tokens low per conversation
 const MAX_BATCHES_PER_RUN = 5;    // max 100 conversations per button click
@@ -68,8 +69,8 @@ exports.analyzeChats = functions
         return res.json({ status: "ok", message: "No new conversations to analyze", totalNew: 0 });
       }
 
-      // Analyze with Claude in batches (capped per run to avoid rate limits)
-      const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+      // Analyze with Gemini in batches (capped per run to avoid rate limits)
+      const client = new GoogleGenerativeAI(GEMINI_API_KEY);
       const batchResults = [];
       const conversationsThisRun = conversations.slice(0, MAX_BATCHES_PER_RUN * BATCH_SIZE);
       const remaining = conversations.length - conversationsThisRun.length;
@@ -264,15 +265,11 @@ Guidelines:
 - Example snippets: SHORT (under 15 words), anonymized — no names or identifying info
 - Key insights: actionable observations for the product team`;
 
-  const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = response.content[0].text;
+  const model = client.getGenerativeModel({ model: GEMINI_MODEL });
+  const result = await model.generateContent(prompt);
+  const text = result.response.text();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Claude did not return valid JSON");
+  if (!jsonMatch) throw new Error("Gemini did not return valid JSON");
   return JSON.parse(jsonMatch[0]);
 }
 
