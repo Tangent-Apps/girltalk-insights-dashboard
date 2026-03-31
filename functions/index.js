@@ -7,7 +7,7 @@ const db = admin.firestore();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || functions.config().gemini?.api_key;
 const DASHBOARD_SECRET = process.env.DASHBOARD_SECRET || functions.config().dashboard?.secret;
-const GEMINI_MODEL = "gemini-2.5-flash-preview-04-17";
+const GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
 const BATCH_SIZE = 20;          // conversations per Claude call
 const MAX_MESSAGES_PER_CHAT = 10; // keep tokens low per conversation
 const MAX_BATCHES_PER_RUN = 5;    // max 100 conversations per button click
