@@ -276,6 +276,7 @@ Guidelines:
   return JSON.parse(jsonMatch[0]);
 }
 
+
 /**
  * Merge multiple batch results into one analysis document.
  */

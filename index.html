@@ -16,6 +16,14 @@ h1{font-size:24px;color:#f0c4e8}
 .run-btn{background:#9b59b6;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:14px}
 .run-btn:hover{background:#8e44ad}
 .run-btn:disabled{opacity:.5;cursor:not-allowed}
+.status-box{background:#1a1a2e;border:1px solid #3a3a5a;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:13px;line-height:1.6;display:none}
+.status-box.visible{display:block}
+.status-box .status-title{color:#f0c4e8;font-weight:600;margin-bottom:6px}
+.status-box .status-msg{color:#aaa}
+.status-box.error{border-color:#e74c3c}
+.status-box.error .status-title{color:#e74c3c}
+.status-box.success{border-color:#2ecc71}
+.status-box.success .status-title{color:#2ecc71}
 
 /* Tabs */
 .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid #2a2a4a;padding-bottom:0}
@@ -117,6 +125,11 @@ canvas{max-height:220px}
 </div>
 <button class="run-btn" id="runBtn" onclick="runAnalysis()">Run Analysis Now</button>
 </div>
+</div>
+
+<div class="status-box" id="statusBox">
+  <div class="status-title" id="statusTitle"></div>
+  <div class="status-msg" id="statusMsg"></div>
 </div>
 
 <div class="tabs">
@@ -342,22 +355,45 @@ function toggleConvo(el){
   msgs.classList.toggle("open");
 }
 
+function setStatus(type, title, msg){
+  var box=document.getElementById("statusBox");
+  box.className="status-box visible "+type;
+  document.getElementById("statusTitle").textContent=title;
+  document.getElementById("statusMsg").textContent=msg;
+}
+function hideStatus(){
+  document.getElementById("statusBox").className="status-box";
+}
+
 async function runAnalysis(){
   var btn=document.getElementById("runBtn");
-  btn.disabled=true;btn.textContent="Analyzing...";
+  btn.disabled=true;
+  btn.textContent="Analyzing...";
+  setStatus("","Running analysis...","Fetching conversations and sending to Claude. This can take 1–2 minutes. Please wait.");
   try{
     var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&days=30");
     var j=await r.json();
     if(j.status==="ok"){
       if(j.remaining>0){
+        setStatus("success","Done — "+j.totalNew+" conversations analyzed",""+j.remaining+" more conversations still to process. Click Run Analysis Now again to continue.");
         btn.disabled=false;
-        btn.textContent="Run Again ("+j.remaining+" left)";
+        btn.textContent="Run Analysis Now";
+        loadData();
       } else {
-        btn.textContent="Done! Reloading...";
-        setTimeout(function(){location.reload()},1500);
+        setStatus("success","All caught up!","Analyzed "+j.totalNew+" conversations. Reloading results...");
+        setTimeout(function(){location.reload()},2000);
       }
-    } else {btn.textContent="Error: "+(j.message||j.error||"Unknown error");setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
-  }catch(e){btn.textContent="Error: "+e.message;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
+    } else {
+      var errMsg=j.message||j.error||"Unknown error";
+      setStatus("error","Analysis failed",errMsg);
+      btn.disabled=false;
+      btn.textContent="Run Analysis Now";
+    }
+  }catch(e){
+    setStatus("error","Could not reach the server",e.message||"Check your connection and try again.");
+    btn.disabled=false;
+    btn.textContent="Run Analysis Now";
+  }
 }
 
 // Login: verify password against the Cloud Function
