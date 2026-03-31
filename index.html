@@ -369,16 +369,14 @@ async function runAnalysis(){
   var btn=document.getElementById("runBtn");
   btn.disabled=true;
   btn.textContent="Analyzing...";
-  setStatus("","Running analysis...","Fetching conversations and sending to Claude. This can take 1–2 minutes. Please wait.");
+  setStatus("","Running analysis...","Fetching conversations and sending to Gemini. This can take 1–2 minutes. Please wait.");
   try{
     var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&days=30");
     var j=await r.json();
     if(j.status==="ok"){
       if(j.remaining>0){
-        setStatus("success","Done — "+j.totalNew+" conversations analyzed",""+j.remaining+" more conversations still to process. Click Run Analysis Now again to continue.");
-        btn.disabled=false;
-        btn.textContent="Run Analysis Now";
-        loadData();
+        setStatus("success","Done — "+j.totalNew+" conversations analyzed",""+j.remaining+" more to process. Reloading, then click Run Analysis Now again to continue.");
+        setTimeout(function(){location.reload()},2500);
       } else {
         setStatus("success","All caught up!","Analyzed "+j.totalNew+" conversations. Reloading results...");
         setTimeout(function(){location.reload()},2000);
