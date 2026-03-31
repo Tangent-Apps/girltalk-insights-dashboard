@@ -348,9 +348,9 @@ async function runAnalysis(){
   try{
     var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&days=30");
     var j=await r.json();
-    if(j.success){btn.textContent="Done! Reloading...";setTimeout(function(){location.reload()},1000)}
-    else{btn.textContent="Error: "+j.error;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
-  }catch(e){btn.textContent="Error";setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},3000)}
+    if(j.status==="ok"){btn.textContent="Done! Reloading...";setTimeout(function(){location.reload()},1000)}
+    else{btn.textContent="Error: "+(j.message||j.error||"Unknown error");setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
+  }catch(e){btn.textContent="Error: "+e.message;setTimeout(function(){btn.disabled=false;btn.textContent="Run Analysis Now"},5000)}
 }
 
 // Login: verify password against the Cloud Function
