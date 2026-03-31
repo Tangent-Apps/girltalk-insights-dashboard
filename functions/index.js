@@ -35,6 +35,23 @@ exports.analyzeChats = functions
       return res.json({ success: true });
     }
 
+    // Insights tab: return saved analysis data
+    if (action === "insights") {
+      try {
+        const metaDoc = await db.doc("chatInsights/_metadata").get();
+        if (!metaDoc.exists) return res.json({ success: true, data: null });
+        const lastRunDate = metaDoc.data().lastRunDate;
+        const weeks = metaDoc.data().weeks || [];
+        const docKey = req.query.week || lastRunDate;
+        const snap = await db.doc(`chatInsights/${docKey}`).get();
+        if (!snap.exists) return res.json({ success: true, data: null });
+        return res.json({ success: true, data: snap.data(), lastRunDate, weeks });
+      } catch (error) {
+        console.error("Insights fetch failed:", error);
+        return res.status(500).json({ success: false, error: error.message });
+      }
+    }
+
     // Conversations tab: return raw conversations for browsing
     if (action === "conversations") {
       try {

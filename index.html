@@ -189,47 +189,13 @@ function switchTab(name){
   document.getElementById("weekPicker").style.display=(name==="analysis")?"flex":"none";
 }
 
-async function loadWeeks(){
-  var metaSnap=await db.collection("chatInsights").doc("_metadata").get();
-  if(!metaSnap.exists)return;
-  var meta=metaSnap.data();
-  var weeks=meta.weeks||[];
-  var select=document.getElementById("weekSelect");
-  if(weeks.length===0){
-    // fallback: just show latest
-    var opt=document.createElement("option");
-    opt.value=meta.lastRunDate||"";
-    opt.textContent="Latest ("+meta.lastRunDate+")";
-    select.appendChild(opt);
-  } else {
-    // Add "Latest" option
-    var latestOpt=document.createElement("option");
-    latestOpt.value="__latest__";
-    latestOpt.textContent="Latest";
-    select.appendChild(latestOpt);
-    // Add each week
-    for(var i=0;i<weeks.length;i++){
-      var opt=document.createElement("option");
-      opt.value="week-"+weeks[i];
-      opt.textContent=weeks[i];
-      select.appendChild(opt);
-    }
-  }
-  document.getElementById("weekPicker").style.display="flex";
-}
-
 async function loadWeekData(docKey){
-  if(docKey==="__latest__"){
-    var metaSnap=await db.collection("chatInsights").doc("_metadata").get();
-    if(!metaSnap.exists)return;
-    docKey=metaSnap.data().lastRunDate;
-  }
-  var snap=await db.collection("chatInsights").doc(docKey).get();
-  if(!snap.exists){
-    document.getElementById("stats").innerHTML='<div class="status">No data for this week.</div>';
-    return;
-  }
-  renderAnalysis(snap.data());
+  var url=FUNCTION_URL+"?secret="+getSecret()+"&action=insights";
+  if(docKey&&docKey!=="__latest__")url+="&week="+docKey;
+  var r=await fetch(url);
+  var j=await r.json();
+  if(j.success&&j.data){renderAnalysis(j.data);}
+  else{document.getElementById("stats").innerHTML='<div class="status">No data for this period.</div>';}
 }
 
 function renderAnalysis(d){
@@ -267,13 +233,17 @@ function renderAnalysis(d){
 }
 
 async function loadData(){
-  var metaSnap=await db.collection("chatInsights").doc("_metadata").get();
-  if(!metaSnap.exists)return document.getElementById("stats").innerHTML='<div class="status">No analysis data yet. Click "Run Analysis Now".</div>';
-  var lastKey=metaSnap.data().lastRunDate;
-  var snap=await db.collection("chatInsights").doc(lastKey).get();
-  if(!snap.exists)return;
-  renderAnalysis(snap.data());
-  await loadWeeks();
+  try{
+    var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&action=insights");
+    var j=await r.json();
+    if(j.success&&j.data){
+      renderAnalysis(j.data);
+    } else {
+      document.getElementById("stats").innerHTML='<div class="status">No analysis data yet. Click "Run Analysis Now".</div>';
+    }
+  }catch(e){
+    document.getElementById("stats").innerHTML='<div class="status">Could not load data.</div>';
+  }
 }
 
 async function loadConversations(){
