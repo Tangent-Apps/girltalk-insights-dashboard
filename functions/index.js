@@ -8,10 +8,28 @@ const db = admin.firestore();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || functions.config().gemini?.api_key;
 const DASHBOARD_SECRET = process.env.DASHBOARD_SECRET || functions.config().dashboard?.secret;
 const GEMINI_MODEL = "gemini-3.1-flash-lite-preview";
-const BATCH_SIZE = 20;          // conversations per Claude call
-const MAX_MESSAGES_PER_CHAT = 10; // keep tokens low per conversation
-const MAX_BATCHES_PER_RUN = 5;    // max 100 conversations per button click
-const DELAY_BETWEEN_BATCHES = 5000; // 5 seconds between batches
+const BATCH_SIZE = 20;
+const MAX_MESSAGES_PER_CHAT = 10;
+const MAX_BATCHES_PER_RUN = 5;
+const DELAY_BETWEEN_BATCHES = 5000;
+
+// App version history — update this list when a new version ships
+const APP_VERSIONS = [
+  { version: "1.10.0", releaseDate: "2026-03-30" },
+  { version: "1.9.0",  releaseDate: "2026-03-24" },
+  { version: "1.8.0",  releaseDate: "2026-03-02" },
+  { version: "1.5.0",  releaseDate: "2026-01-11" },
+  { version: "1.0.0",  releaseDate: "2025-08-14" },
+];
+
+function getVersionForDate(date) {
+  if (!date) return APP_VERSIONS[APP_VERSIONS.length - 1].version;
+  const sorted = [...APP_VERSIONS].sort((a, b) => new Date(b.releaseDate) - new Date(a.releaseDate));
+  for (const v of sorted) {
+    if (date >= new Date(v.releaseDate)) return v.version;
+  }
+  return APP_VERSIONS[APP_VERSIONS.length - 1].version;
+}
 
 exports.analyzeChats = functions
   .runWith({ timeoutSeconds: 540, memory: "1GB" })
@@ -35,17 +53,23 @@ exports.analyzeChats = functions
       return res.json({ success: true });
     }
 
-    // Insights tab: return saved analysis data
+    // Insights: return saved analysis data (overall or by version)
     if (action === "insights") {
       try {
         const metaDoc = await db.doc("chatInsights/_metadata").get();
-        if (!metaDoc.exists) return res.json({ success: true, data: null });
+        if (!metaDoc.exists) return res.json({ success: true, data: null, versions: APP_VERSIONS });
         const lastRunDate = metaDoc.data().lastRunDate;
-        const weeks = metaDoc.data().weeks || [];
-        const docKey = req.query.week || lastRunDate;
+        // If a specific version is requested, load that version's doc
+        const docKey = req.query.version
+          ? `version-${req.query.version}`
+          : lastRunDate;
         const snap = await db.doc(`chatInsights/${docKey}`).get();
-        if (!snap.exists) return res.json({ success: true, data: null });
-        return res.json({ success: true, data: snap.data(), lastRunDate, weeks });
+        return res.json({
+          success: true,
+          data: snap.exists ? snap.data() : null,
+          lastRunDate,
+          versions: APP_VERSIONS,
+        });
       } catch (error) {
         console.error("Insights fetch failed:", error);
         return res.status(500).json({ success: false, error: error.message });
@@ -109,6 +133,9 @@ exports.analyzeChats = functions
 
       const mergedResult = mergeBatchResults(batchResults, since, conversationsThisRun.length);
       await saveInsights(mergedResult, processedIds);
+
+      // Group conversations by app version and save per-version analysis
+      await analyzeAndSaveByVersion(client, conversationsThisRun);
 
       console.log(`Analysis complete: ${conversationsThisRun.length} analyzed, ${remaining} remaining`);
       return res.json({
@@ -380,6 +407,38 @@ function mergeBatchResults(results, sinceTimestamp, totalConversations) {
     engagement,
     keyInsights,
   };
+}
+
+/**
+ * Group conversations by app version and run a separate Gemini analysis per version.
+ * Results are saved to chatInsights/version-X.Y.Z with merge:true so they accumulate.
+ */
+async function analyzeAndSaveByVersion(client, conversations) {
+  // Group by version
+  const byVersion = {};
+  for (const conv of conversations) {
+    const v = getVersionForDate(conv.createdAt);
+    if (!byVersion[v]) byVersion[v] = [];
+    byVersion[v].push(conv);
+  }
+
+  for (const [version, convs] of Object.entries(byVersion)) {
+    console.log(`Analyzing ${convs.length} conversations for v${version}`);
+    const batchResults = [];
+    for (let i = 0; i < convs.length; i += BATCH_SIZE) {
+      const batch = convs.slice(i, i + BATCH_SIZE);
+      const result = await analyzeWithClaude(client, batch);
+      batchResults.push(result);
+      if (i + BATCH_SIZE < convs.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+      }
+    }
+    const versionResult = mergeBatchResults(batchResults, null, convs.length);
+    const versionInfo = APP_VERSIONS.find(v2 => v2.version === version);
+    versionResult.appVersion = version;
+    versionResult.versionReleaseDate = versionInfo ? versionInfo.releaseDate : null;
+    await db.doc(`chatInsights/version-${version}`).set(versionResult, { merge: true });
+  }
 }
 
 /**

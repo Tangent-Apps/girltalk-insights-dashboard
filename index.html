@@ -31,10 +31,12 @@ h1{font-size:24px;color:#f0c4e8}
 .tab:hover{color:#ccc}
 .tab.active{color:#f0c4e8;border-bottom-color:#9b59b6}
 
-/* Week picker */
-.week-picker{display:flex;align-items:center;gap:8px}
-.week-picker select{background:#1a1a2e;color:#e0e0e0;border:1px solid #3a3a5a;padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer}
-.week-picker select:focus{outline:none;border-color:#9b59b6}
+/* Version picker */
+.version-picker{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.version-btn{background:#1a1a2e;color:#888;border:1px solid #3a3a5a;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:12px;transition:all .2s;white-space:nowrap}
+.version-btn:hover{border-color:#9b59b6;color:#ccc}
+.version-btn.active{background:#9b59b6;color:#fff;border-color:#9b59b6}
+.version-btn .v-date{font-size:10px;opacity:.7;display:block}
 
 /* Stats & Cards */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
@@ -120,9 +122,7 @@ canvas{max-height:220px}
 <div class="header">
 <div><h1>GirlTalk Chat Insights</h1><div class="last-run" id="lastRun"></div></div>
 <div class="header-actions">
-<div class="week-picker" id="weekPicker" style="display:none">
-<select id="weekSelect" onchange="loadWeekData(this.value)"></select>
-</div>
+<div class="version-picker" id="versionPicker" style="display:none"></div>
 <button class="run-btn" id="runBtn" onclick="runAnalysis()">Run Analysis Now</button>
 </div>
 </div>
@@ -185,17 +185,48 @@ function switchTab(name){
       t.classList.add("active");
     }
   });
-  // Show week picker only on analysis tab
-  document.getElementById("weekPicker").style.display=(name==="analysis")?"flex":"none";
+  // Show version picker only on analysis tab
+  document.getElementById("versionPicker").style.display=(name==="analysis")?"flex":"none";
 }
 
-async function loadWeekData(docKey){
+var activeVersion=null;
+
+function buildVersionPicker(versions){
+  var picker=document.getElementById("versionPicker");
+  picker.innerHTML="";
+  // "All" button first
+  var allBtn=document.createElement("button");
+  allBtn.className="version-btn"+(activeVersion===null?" active":"");
+  allBtn.innerHTML='<span>All versions</span>';
+  allBtn.onclick=function(){loadVersionData(null);};
+  picker.appendChild(allBtn);
+  // One button per version
+  for(var i=0;i<versions.length;i++){
+    var v=versions[i];
+    var btn=document.createElement("button");
+    btn.className="version-btn"+(activeVersion===v.version?" active":"");
+    btn.dataset.version=v.version;
+    var d=new Date(v.releaseDate).toLocaleDateString("en-US",{month:"short",day:"numeric"});
+    btn.innerHTML='<span>v'+v.version+'</span><span class="v-date">'+d+'</span>';
+    (function(ver){btn.onclick=function(){loadVersionData(ver.version);};})(v);
+    picker.appendChild(btn);
+  }
+  picker.style.display="flex";
+}
+
+async function loadVersionData(version){
+  activeVersion=version;
+  // Update active state on buttons
+  document.querySelectorAll(".version-btn").forEach(function(b){
+    b.classList.toggle("active",
+      version===null ? !b.dataset.version : b.dataset.version===version);
+  });
   var url=FUNCTION_URL+"?secret="+getSecret()+"&action=insights";
-  if(docKey&&docKey!=="__latest__")url+="&week="+docKey;
+  if(version)url+="&version="+version;
   var r=await fetch(url);
   var j=await r.json();
   if(j.success&&j.data){renderAnalysis(j.data);}
-  else{document.getElementById("stats").innerHTML='<div class="status">No data for this period.</div>';}
+  else{document.getElementById("stats").innerHTML='<div class="status">No data for this version yet. Run analysis first.</div>';}
 }
 
 function renderAnalysis(d){
@@ -236,6 +267,7 @@ async function loadData(){
   try{
     var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&action=insights");
     var j=await r.json();
+    if(j.versions&&j.versions.length){buildVersionPicker(j.versions);}
     if(j.success&&j.data){
       renderAnalysis(j.data);
     } else {
