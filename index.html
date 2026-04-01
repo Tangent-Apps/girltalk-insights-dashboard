@@ -124,6 +124,7 @@ canvas{max-height:220px}
 <div class="header-actions">
 <div class="version-picker" id="versionPicker" style="display:none"></div>
 <button class="run-btn" id="runBtn" onclick="runAnalysis()">Run Analysis Now</button>
+<button class="run-btn" id="fullRunBtn" onclick="runFullAnalysis()" style="background:#555;font-size:12px;padding:8px 14px" title="Re-analyzes all conversations from the last 30 days, including previously analyzed ones. Use this to rebuild version data.">Re-run all</button>
 </div>
 </div>
 
@@ -393,6 +394,37 @@ async function runAnalysis(){
     setStatus("error","Could not reach the server",e.message||"Check your connection and try again.");
     btn.disabled=false;
     btn.textContent="Run Analysis Now";
+  }
+}
+
+async function runFullAnalysis(){
+  if(!confirm("This will re-analyze all conversations from the last 30 days (including ones already processed). It may take several minutes and multiple clicks. Continue?"))return;
+  var btn=document.getElementById("fullRunBtn");
+  var mainBtn=document.getElementById("runBtn");
+  btn.disabled=true;mainBtn.disabled=true;
+  btn.textContent="Re-running...";
+  setStatus("","Re-running full analysis...","Fetching all conversations from last 30 days and sending to Gemini. This will also rebuild version-specific data. Please wait.");
+  try{
+    var r=await fetch(FUNCTION_URL+"?secret="+getSecret()+"&days=30&full=true");
+    var j=await r.json();
+    if(j.status==="ok"){
+      if(j.remaining>0){
+        setStatus("success","Done — "+j.totalNew+" conversations analyzed",""+j.remaining+" more to process. Reloading, then click Re-run all again to continue.");
+        setTimeout(function(){location.reload()},2500);
+      } else {
+        setStatus("success","All done!","Analyzed "+j.totalNew+" conversations across all versions. Reloading results...");
+        setTimeout(function(){location.reload()},2000);
+      }
+    } else {
+      var errMsg=j.message||j.error||"Unknown error";
+      setStatus("error","Analysis failed",errMsg);
+      btn.disabled=false;mainBtn.disabled=false;
+      btn.textContent="Re-run all";
+    }
+  }catch(e){
+    setStatus("error","Could not reach the server",e.message||"Check your connection and try again.");
+    btn.disabled=false;mainBtn.disabled=false;
+    btn.textContent="Re-run all";
   }
 }
 
